@@ -172,6 +172,21 @@ def test_unknown_threat_level_is_ignored_when_no_text_value_is_available():
     assert payload['summary'] == 'Found 1 matching MISP event in 1 MISP instance.'
 
 
+@pytest.mark.parametrize(
+    'threat_level, expected_level',
+    [
+        (2, 'medium'),
+        ('4', 'undefined'),
+    ],
+)
+def test_numeric_threat_level_is_mapped(threat_level, expected_level):
+    event = _event(threat_level_id=None, threat_level=threat_level)
+
+    payload = _payload([_instance([event])])
+
+    assert payload['threat_level'] == expected_level
+
+
 def test_highest_threat_level_selects_most_severe_event():
     report = [_instance([
         _event(id='1', date='2026-03-01', threat_level_id='4'),
@@ -380,9 +395,20 @@ def test_no_match_report_with_single_instance():
     assert 'instances' in payload
 
 
+def test_summary_counts_only_instances_with_matches():
+    payload = _payload([
+        _instance([], name='empty', url='https://one.example'),
+        _instance([_event()], name='hit', url='https://two.example'),
+    ])
+
+    assert payload['event_count'] == 1
+    assert payload['summary'] == (
+        'Found 1 matching MISP event in 1 MISP instance; highest threat level: medium.')
+    assert len(payload['instances']) == 2
+
+
 def test_empty_report_is_no_match():
     payload = _payload([])
-
     assert payload['match_status'] == 'no-match'
     assert payload['event_count'] == 0
     assert payload['summary'] == 'No matching MISP events found.'
@@ -425,7 +451,7 @@ def test_malformed_report_entries_are_skipped():
         {'name': 'matched', 'url': 'https://three.example', 'event_count': 1},
     ]
     assert payload['summary'] == (
-        'Found 1 matching MISP event in 3 MISP instances; highest threat level: medium.')
+        'Found 1 matching MISP event in 1 MISP instance; highest threat level: medium.')
 
 
 def test_malformed_event_fields_are_normalised():

@@ -139,6 +139,9 @@ def _event_threat_level(event):
             return threat_level
     threat_level = _string(event.get('threat_level'))
     if threat_level:
+        mapped_threat_level = THREAT_LEVELS.get(threat_level)
+        if mapped_threat_level:
+            return mapped_threat_level
         return threat_level.lower()
     return None
 
@@ -304,19 +307,19 @@ def _primary_event(events):
     return max(candidates, key=_sort_key)
 
 
-def _summary(event_count, instance_count, threat_level):
+def _summary(event_count, queried_instance_count, matched_instance_count, threat_level):
     """Build the one-line summary shown by the enrichment panel."""
     if not event_count:
-        if not instance_count:
+        if not queried_instance_count:
             return 'No matching MISP events found.'
-        instances = _plural(instance_count, 'configured MISP instance', 'configured MISP instances')
-        return f'No matching MISP events found in {instance_count} {instances}.'
+        instances = _plural(queried_instance_count, 'configured MISP instance', 'configured MISP instances')
+        return f'No matching MISP events found in {queried_instance_count} {instances}.'
 
     events = _plural(event_count, 'matching MISP event', 'matching MISP events')
     summary = f'Found {event_count} {events}'
-    if instance_count:
-        instances = _plural(instance_count, 'MISP instance', 'MISP instances')
-        summary += f' in {instance_count} {instances}'
+    if matched_instance_count:
+        instances = _plural(matched_instance_count, 'MISP instance', 'MISP instances')
+        summary += f' in {matched_instance_count} {instances}'
     if threat_level:
         summary += f'; highest threat level: {threat_level}'
     return f'{summary}.'
@@ -332,9 +335,10 @@ def misp_build_enrichment(report):
     events, instances = _collect_events(report)
     threat_level = _highest_threat_level(events)
     primary_event = _primary_event(events)
+    matched_instance_count = sum(1 for instance in instances if instance.get('event_count'))
 
     payload = {
-        'summary': _summary(len(events), len(instances), threat_level),
+        'summary': _summary(len(events), len(instances), matched_instance_count, threat_level),
         'match_status': 'matched' if events else 'no-match',
         'event_count': len(events),
     }
